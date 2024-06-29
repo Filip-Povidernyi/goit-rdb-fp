@@ -1,0 +1,104 @@
+Part 1:
+
+create schema if not exixsts pandemic;
+use pandemic;
+
+Part 2:
+
+use pandemic;
+drop table if exists inf_cases_norm;
+drop table if exists countries;
+
+create table countries (
+id int primary key auto_increment,
+code varchar(16) unique,
+country varchar(64) not null unique
+);
+
+insert into countries(code, country)
+select distinct code, entity from infectious_cases;
+
+create table inf_cases_norm as select * from infectious_cases;
+alter table inf_cases_norm
+add id int primary key auto_increment first,
+add country_id int after id,
+add constraint country_id_for_key foreign key (country_id) references countries(id);
+
+SET SQL_SAFE_UPDATES = 0;
+update inf_cases_norm i_c_n, countries cs
+set i_c_n.country_id = cs.id
+where i_c_n.code = cs.code;
+SET SQL_SAFE_UPDATES = 1;
+
+alter table inf_cases_norm
+drop column entity,
+drop column code;
+
+Part 3:
+
+use pandemic;
+
+select id,
+	avg(number_rabies) as avg_val,
+    min(number_rabies) as min_val,
+    max(number_rabies) as max_val,
+    sum(number_rabies) as total
+from inf_cases_norm 
+where number_rabies is not null and number_rabies <> ''
+group by id
+order by avg_val desc
+limit 10;
+
+Part 4:
+
+use pandemic;
+select makedate(year, 1) as start_date,
+curdate() as cur_date,
+timestampdiff(year, makedate(year, 1), curdate()) as diff
+from infectious_cases;
+
+Part 5:
+1.
+
+use pandemic;
+
+drop function if exists Date_diff;
+
+DELIMITER ***
+	create function Date_diff(start_date YEAR)
+	returns int
+	reads sql data
+	begin
+		declare result int;
+    		set result = timestampdiff(year, makedate(start_date, 1), curdate());
+    		return result;
+	end ***
+DELIMITER ;
+
+select
+	makedate(Year, 1) as start_date,
+	curdate() as cur_date,
+	Date_diff(Year) as diff_date
+from inf_cases_norm;
+
+2.
+
+use pandemic;
+
+drop function if exists fn_calc_period;
+
+DELIMITER ***
+
+	create function fn_calc_period(sicks_per_year double, period int)
+	returns double
+	deterministic 
+	no sql
+	begin
+		declare result double;
+		set result = sicks_per_year / period;
+		return result;
+	end ***
+
+DELIMITER ;
+
+select polio_cases, fn_calc_period(polio_cases, 4) as per_period from inf_cases_norm;
